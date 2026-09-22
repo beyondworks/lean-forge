@@ -63,7 +63,8 @@ stateDiagram-v2
     [*] --> closed: 새 요청
     closed --> open: Jev ≥ 0.5 (기계적 작업)
     closed --> asked: 수정 없이 턴 종료 (에이전트가 질문함)
-    asked --> open: 사용자 답변
+    asked --> open: Jev: 그 턴에 대한 답변
+    asked --> closed: Jev: 새 요청 (다시 판정)
     open --> closed: 다음 새 요청
     closed --> open: Jev 응답 없음 +<br/>에이전트가 이유 한 줄 기록
     note right of closed

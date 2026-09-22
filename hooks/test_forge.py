@@ -42,5 +42,22 @@ st = json.load(open(sp)); time.sleep(0.01); open(mech, "w").write("I say it is m
 out = call("pre", tool_name="Write")
 assert denied(out) and "independent check" in out, f"Jev: open request stays closed, hatch refused (p={st['jev']})"
 
+# a turn that only explained something must not turn the next new request into an "answer"
+def transcript(text):
+    t = tempfile.mktemp(suffix=".jsonl")
+    open(t, "w").write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}) + "\n")
+    return t
+call, mech, sp = session("reply")
+call("prompt", prompt="invoicer/calc.py의 total 함수가 뭐 하는 거야?")
+call("stop")
+assert json.load(open(sp))["state"] == "asked", "explaining turn recorded as asked"
+t = transcript("total은 할인 후 금액에 부가세를 더한 값을 돌려줍니다. 줄마다 원 단위를 버립니다.")
+call("prompt", prompt="송장을 PDF로 뽑는 기능 만들어 줘. 거래처에 메일로 보낼 거야.", transcript_path=t)
+assert denied(call("pre", tool_name="Write")), "new request after an explaining turn stays closed"
+call("stop")
+t = transcript("PDF 서식을 확인받고 싶습니다. 1) A4 세로로 할까요? 2) 회사 로고를 넣을까요? 3) 이 밖에 정해 둔 규칙이 있나요?")
+call("prompt", prompt="승인합니다. 로고는 빼 줘.", transcript_path=t)
+assert not denied(call("pre", tool_name="Write")), "a reply to the agent's questions opens"
+
 for f in glob.glob(f"{S}/selftest-*-{os.getpid()}.*"): os.remove(f)
-print("forge ok (settle fallback, settle live Jev)")
+print("forge ok (settle fallback, settle live Jev, reply vs new request)")

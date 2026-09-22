@@ -68,7 +68,8 @@ stateDiagram-v2
     [*] --> closed: new request
     closed --> open: Jev ≥ 0.5 (mechanical)
     closed --> asked: turn ends without edits (the agent asked)
-    asked --> open: user replies
+    asked --> open: Jev: the message replies to that turn
+    asked --> closed: Jev: it is a new request (triaged again)
     open --> closed: next new request
     closed --> open: Jev unavailable and the agent writes a one-line reason
     note right of closed
