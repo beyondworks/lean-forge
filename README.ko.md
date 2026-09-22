@@ -65,10 +65,10 @@ stateDiagram-v2
     closed --> asked: 수정 없이 턴 종료 (에이전트가 질문함)
     asked --> open: 사용자 답변
     open --> closed: 다음 새 요청
-    closed --> open: Jev 응답 없음 + 에이전트가 이유 한 줄 기록
+    closed --> open: Jev 응답 없음 +<br/>에이전트가 이유 한 줄 기록
     note right of closed
-        닫혀 있는 동안 Edit / Write /
-        MultiEdit / NotebookEdit 차단
+        닫혀 있는 동안 차단:
+        Edit · Write · MultiEdit · NotebookEdit
     end note
 ```
 
