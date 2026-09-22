@@ -1,5 +1,5 @@
 {
   "name": "lean-forge",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "One harness, no other install needed: SETTLE (dryforge-style questions enforced by a hook, Jev triage), BUILD (Ponytail), PROVE and REPORT (Castra evidence ledger, guardian, release gate). Castra 0.9.1 and Ponytail 4.5.0 vendored."
 }
