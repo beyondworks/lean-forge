@@ -5,8 +5,8 @@
 One Claude Code plugin that settles the decisions a result depends on before any file is touched,
 builds the smallest thing that satisfies them, and closes every edit with evidence.
 It carries its own copies of [Castra](https://github.com/beyondworks/castra) and
-[Ponytail](https://github.com/DietrichGebert/ponytail), and borrows the questioning discipline of
-[dryforge](https://github.com/prekuter/dryforge) — so there is nothing else to install and nothing to choose between.
+[Ponytail](https://github.com/DietrichGebert/ponytail), and adds a questioning phase that a hook enforces —
+so there is nothing else to install and nothing to choose between.
 
 [![release](https://img.shields.io/github/v/release/beyondworks/lean-forge?label=release)](https://github.com/beyondworks/lean-forge/releases)
 ![license](https://img.shields.io/badge/license-MIT-black)
@@ -23,11 +23,11 @@ Coding agents fail in two opposite ways.
 - **Fast harnesses guess.** Told to keep moving, the agent fills every open question with a plausible
   default: English CSV headers the accountant never asked for, an invoice number format nobody approved,
   the user's own wrong diagnosis ("it's probably `round()`") taken as the cause.
-- **Thorough harnesses pay for ceremony.** They ask the right questions — and then spend half an hour
-  writing contract documents, dispatching review subagents and committing on branches.
+- **Thorough harnesses pay for ceremony.** They ask the right questions — and then spend most of their
+  time on contract documents, review subagents and branch-and-commit workflows.
 
-We measured both. The thorough harness found its decisive questions in the **first 1.5–3 minutes**;
-60–75% of its time went to the ceremony afterwards. The fast harness was fast because it never asked.
+The accuracy comes from the questions, asked in the first minutes, not from the ceremony that follows.
+The fast harness is fast because it never asks.
 
 lean-forge keeps the questions and drops the ceremony — and it does not trust a prompt to keep the
 questions alive. A hook closes file edits until the outcome-changing decisions are settled.
@@ -103,14 +103,12 @@ flowchart TB
             P2["review · audit · debt · help"]
         end
     end
-    D["dryforge<br/>(idea only, no code)"] -. "decision lenses,<br/>'any other rule?'" .-> F
 ```
 
 | Part | Kept from the original | Changed |
 |---|---|---|
 | Castra | Everything: per-file evidence ledger, execution contract, guardian (force push, `DROP`, reading `.env` are handed to the user; `rm -rf`, `reset --hard`, `sudo`, publishing ask first), release gate, checkpoints, budget advisory, `/castra` modes | nothing |
 | Ponytail | Everything: ladder, rules, `/ponytail lite\|full\|ultra`, four skills | one sentence: *"ship the lazy version and question it … never stall"* now applies **after** SETTLE |
-| dryforge | The questioning discipline: enumerate decisions with lenses, treat input as material, recommend with examples, ask for missing rules | the contract documents, review subagents and branch/commit workflow are left out |
 
 ---
 
@@ -124,7 +122,6 @@ API-price equivalent of the tokens used.
 
 | Harness | Hidden tests passed | Time | Cost |
 |---|---|---|---|
-| dryforge | 35/36 | 279 min | $96.81 |
 | Castra + Ponytail | 15/36 | 10 min | $3.79 |
 | **lean-forge** (2 runs) | **31/36 · 36/36** | **18 min** | **$5.2** |
 
@@ -132,12 +129,10 @@ API-price equivalent of the tokens used.
 
 | lean-forge vs | Accuracy | Time and cost |
 |---|---|---|
-| dryforge | same (93% vs 97%, p = 0.66) | **15× faster, 19× cheaper** (p = 0.008) |
 | Castra + Ponytail | **2.2× higher** (93% vs 42%, p < 0.001) | no significant difference (p = 0.07) |
 
 The same comparison on the author's full personal setup (other plugins, hooks and memory loaded)
-gave the same picture: 95% vs dryforge 97% (p = 1.00) at 18 vs 272 minutes (p = 0.016), and 95% vs
-Castra + Ponytail 52% (p < 0.001) at equal time.
+gave the same picture: 95% vs 52% (p < 0.001) at equal time (18 vs 19 minutes, p = 1.00).
 
 - 6 of lean-forge's 8 missed tests came from two runs where the scripted user answered against its own
   intent file (it approved a wrong number format, and waved off a question the file answered). The agent
@@ -145,7 +140,6 @@ Castra + Ponytail 52% (p < 0.001) at equal time.
   at least once.
 - Every file lean-forge edited ended *verified* in the Castra ledger, and the stop gate never had to
   fire (0 of 30 runs; the Castra + Ponytail pair needed it in 7 of 8).
-- Lines of production code added across seven tasks: lean-forge 139, dryforge 349.
 
 Everything needed to rerun it is in [`bench/`](bench/): tasks, intent files, hidden tests, fixtures,
 the runner, and per-run numbers ([`bench/results-summary.csv`](bench/results-summary.csv)).
@@ -203,7 +197,6 @@ python3 hooks/test_bundle.py   # guardian, release gate, session contract, evide
 
 - [Castra](https://github.com/beyondworks/castra) 0.9.1 — MIT, vendored unchanged ([license](vendor-licenses/castra-LICENSE))
 - [Ponytail](https://github.com/DietrichGebert/ponytail) 4.5.0 by Dietrich Gebert — MIT, vendored with one sentence changed ([license](vendor-licenses/ponytail-LICENSE))
-- [dryforge](https://github.com/prekuter/dryforge) by prekuter — MIT, ideas only
 - [Jev](https://docs.typesafe.ai) by TypeSafe — external API
 
 MIT © beyondworks
