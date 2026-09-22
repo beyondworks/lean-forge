@@ -1,0 +1,17 @@
+{
+ "id": "c1-G-t8-r1",
+ "case": "1",
+ "arm": "G",
+ "task": "t8",
+ "rep": "1",
+ "wall_total": 129.5,
+ "cost_usd": 0.7271,
+ "user_replies": 1,
+ "agent_turns": 2,
+ "errors": [],
+ "grade": {
+  "hidden": "OK",
+  "visible": "OK",
+  "diff_stat": "2 files changed, 46 insertions(+)"
+ }
+}

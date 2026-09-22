@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lean-forge",
+  "description": "One harness: settle what changes the outcome, build the simplest thing, prove it on evidence.",
+  "owner": { "name": "beyondworks", "url": "https://github.com/beyondworks" },
+  "plugins": [
+    {
+      "name": "lean-forge",
+      "description": "Ask before you build (enforced), build lean (Ponytail), prove on evidence (Castra). One plugin.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

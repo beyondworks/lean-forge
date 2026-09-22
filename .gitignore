@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+bench/runs/
+bench/probe/
+bench/results/*.log
+bench/results/*-r0.json

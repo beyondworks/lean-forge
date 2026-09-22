@@ -1,0 +1,17 @@
+{
+ "id": "c1-A-t5-r1",
+ "case": "1",
+ "arm": "A",
+ "task": "t5",
+ "rep": "1",
+ "wall_total": 2458.9,
+ "cost_usd": 13.9049,
+ "user_replies": 5,
+ "agent_turns": 7,
+ "errors": [],
+ "grade": {
+  "hidden": "OK",
+  "visible": "OK",
+  "diff_stat": "3 files changed, 359 insertions(+)"
+ }
+}
