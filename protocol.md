@@ -36,6 +36,8 @@ offer a marker path for mechanical work.)
 - Castra tracks every edited file as pending. Close it with `castra_runtime.py verify --file <changed file>
   -- <the check>` (session id and script path are in the Castra runtime hint), choosing a check that would
   fail on the defect. For a bug, watch the test fail on the old code first.
+- The check runs as argv without a shell: `-- python3 -m pytest tests/test_x.py`. For `&&`, pipes or `!`,
+  wrap it: `-- sh -c 'grep -q a f && ! grep -q b f'`. Exit 127 means the check itself did not run.
 - Verify on the surface the user actually uses (the program, the installed app, the running service,
   the screen) whenever that is where the change matters. A build, a type check or reading code is not
   proof of behavior.
