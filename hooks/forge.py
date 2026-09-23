@@ -125,7 +125,8 @@ def main():
                     f"result, run `echo '<one-line reason>' > {mech}` and retry the edit.")
 
     elif ev == "stop":
-        used_hatch = os.path.exists(mech) and os.path.getmtime(mech) >= st.get("prompt_at", 0)
+        used_hatch = (st.get("hatch", True) and os.path.exists(mech)  # a marker the gate refused (Jev answered) is not a used hatch
+                      and os.path.getmtime(mech) >= st.get("prompt_at", 0))
         if st.get("state") == "closed" and not used_hatch:
             st["state"] = "asked"
 

@@ -41,6 +41,8 @@ call("prompt", prompt="송장을 PDF로 뽑는 기능 만들어 줘. 거래처�
 st = json.load(open(sp)); time.sleep(0.01); open(mech, "w").write("I say it is mechanical\n")
 out = call("pre", tool_name="Write")
 assert denied(out) and "independent check" in out, f"Jev: open request stays closed, hatch refused (p={st['jev']})"
+call("stop")
+assert json.load(open(sp))["state"] == "asked", "a refused marker is not a used hatch: the turn still counts as asked"
 
 # a turn that only explained something must not turn the next new request into an "answer"
 def transcript(text):
