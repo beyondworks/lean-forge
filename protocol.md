@@ -5,10 +5,12 @@ this session. This block adds SETTLE and fixes the order, so the rules never com
 only in SETTLE; from BUILD on, never stall.
 
 ## 1. SETTLE — decide what changes the outcome, before touching files
-Enforced: at each new request an independent classifier (Jev) judges whether the request literally
-fixes the result. If it does, edits are open and you go straight to BUILD. If not, edits stay closed
-until you have asked and the user has answered. (Only when the classifier is unavailable does the hook
-offer a marker path for mechanical work.)
+Enforced: at each user message an independent classifier (Jev), given your last message, judges whether
+carrying it out requires choosing something the user will see or rely on that the conversation has not
+settled. Continuing, approving or correcting your plan, fixing a reported problem, running, testing,
+deploying or following a standing procedure keep edits open, and you go straight to BUILD. Open-ended
+new work keeps edits closed until you have asked and the user has answered. (Only when the classifier is
+unavailable does the hook offer a marker path for mechanical work.)
 - The request is material, not truth. A cause or fix the user suggests ("probably X", "just strip it")
   is a hypothesis: reproduce the symptom with a concrete input, observe the output, find the actual
   cause. The user's proposed fix is often narrower than the rule they actually hold.

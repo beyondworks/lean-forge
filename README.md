@@ -39,9 +39,9 @@ Rules written only as text were followed in 4 of 10 cases; enforced by a hook, i
 
 ```mermaid
 flowchart LR
-    R([request]) --> J{"Jev: does the request<br/>literally fix the result?"}
-    J -- "yes: typo, rename,<br/>stated output" --> B
-    J -- "no" --> S["<b>SETTLE</b><br/>reproduce the symptom<br/>ask with boundary examples<br/>'any other rule?'"]
+    R([request]) --> J{"Jev: does it need a<br/>decision nobody settled?"}
+    J -- "no: continue, fix,<br/>run, stated change" --> B
+    J -- "yes" --> S["<b>SETTLE</b><br/>reproduce the symptom<br/>ask with boundary examples<br/>'any other rule?'"]
     S -- "user answers" --> B["<b>BUILD</b><br/>confirmed rules → tests first<br/>smallest change that passes"]
     B --> P["<b>PROVE</b><br/>run the check that would fail<br/>on the defect, tie it to the file"]
     P --> T(["<b>REPORT</b><br/>result · evidence · unverified<br/>where it reached"])
@@ -50,7 +50,7 @@ flowchart LR
 
 | Phase | What happens | Enforced by |
 |---|---|---|
-| **SETTLE** | A cause the user suggests is a hypothesis: reproduce it. List the decisions the result must answer (structure, behavior, contract, technical). Ask once, at most five items, each with a recommendation and a worked example at a boundary value, and end with *"any other rule you hold?"* | Edits stay closed until the user answers. An independent classifier (Jev) opens them at once for requests that fix their own result. |
+| **SETTLE** | A cause the user suggests is a hypothesis: reproduce it. List the decisions the result must answer (structure, behavior, contract, technical). Ask once, at most five items, each with a recommendation and a worked example at a boundary value, and end with *"any other rule you hold?"* | Edits stay closed until the user answers. An independent classifier (Jev), reading the agent's last message too, opens them at once when nothing user-visible is left to decide: continuing or approving the plan, fixing a reported problem, running, a stated change. |
 | **BUILD** | Each confirmed rule becomes an acceptance test with its reason in one line. Then the Ponytail ladder: does it need to exist → stdlib → native → installed dependency → one line → minimum code. | Ponytail rules, injected every session |
 | **PROVE** | Every edited file is tracked as unverified until a check is explicitly tied to it; editing again voids the evidence. | Castra ledger: ending a turn with unverified edits is blocked |
 | **REPORT** | What changed, the decisive evidence, what was not verified, and where the change reached: source, installed build, running service, production. | Castra execution contract |
@@ -65,12 +65,13 @@ to fight each other ("don't stall" and "ask first") now live in different phases
 ```mermaid
 stateDiagram-v2
     direction LR
-    [*] --> closed: new request
-    closed --> open: Jev ≥ 0.5 (mechanical)
+    state judge <<choice>>
+    [*] --> judge: user message
+    judge --> open: Jev < 0.8 (nothing left to decide)
+    judge --> closed: Jev ≥ 0.8 (a user-visible decision is open)
     closed --> asked: turn ends without edits (the agent asked)
-    asked --> open: Jev: the message replies to that turn
-    asked --> closed: Jev: it is a new request (triaged again)
-    open --> closed: next new request
+    asked --> judge: next message
+    open --> judge: next message
     closed --> open: Jev unavailable and the agent writes a one-line reason
     note right of closed
         Edit / Write / MultiEdit / NotebookEdit
@@ -79,9 +80,26 @@ stateDiagram-v2
 ```
 
 The classifier is [Jev](https://docs.typesafe.ai), a small model that returns a probability instead of
-text. One call costs about 0.7 s. It separated 16 labeled requests perfectly in Korean and in English
-(mechanical ≥ 0.55, needs-a-decision ≤ 0.21). Without a key, or if Jev does not answer, the gate falls
-back to asking the agent for a written reason before a mechanical edit.
+text. One call costs about 0.7 s. At every user message it is given that message and the agent's last
+message, and asks one question: *to carry this out, must the agent choose something the user will see or
+rely on that nothing has settled yet?* Without a key, or if Jev does not answer, a message after an asking
+turn counts as its answer, and a mechanical edit needs a one-line written reason.
+
+Up to v2.0.4 the gate judged each message alone, asking whether it *literally fixed the result*. A
+two-word go-ahead ("진행해줘", "go ahead") after a working turn never does, so it closed edits in the
+middle of agreed work. On the author's own messages (4,534 from 298 sessions):
+
+| Fresh sample of 100 (threshold chosen on a separate 100) | Wrongly closed | Wrongly opened |
+|---|---|---|
+| v2.0.4 rule, after a working turn | 42 of 42 | 0 of 5 |
+| **v2.0.5 rule** | **1 of 42** | **0 of 5** |
+
+The rest of the sample were questions and checks, where either answer is harmless.
+
+**Your own habits (optional).** The gate reads `~/.config/lean-forge/profile.txt` if it exists: a short
+plain-text note on how you instruct agents (your usual go-ahead phrases, your standing procedures). It is
+sent to Jev with each judgment and nowhere else; keep it out of any repository. Without it the gate still
+works; on the author's data the note removed three of five wrong closes on the tuning sample.
 
 ---
 
@@ -183,7 +201,8 @@ contains both, and the same hooks would run twice.
 
 There is nothing to call. Make requests as usual:
 
-- A request whose result is fully stated goes straight through.
+- A request whose result is fully stated goes straight through, and so does a go-ahead, an approval or a
+  correction of the plan the agent proposed.
 - Anything else gets one message of questions first. Answer it and the work continues without stopping.
 - `/castra review · verify · reframe · finish · resume · status` and `/ponytail lite | full | ultra`
   work as they do in the originals.
@@ -205,7 +224,7 @@ python3 hooks/test_bundle.py   # guardian, release gate, session contract, evide
 - The scripted user is itself a model and made mistakes (above).
 - The SETTLE gate watches the edit tools. A file written through the shell passes it, as it passes
   Castra's ledger.
-- The Jev threshold (0.5) was set on 16 requests. Tune it on real traffic.
+- The Jev threshold (0.8) was set on one person's messages (100 to tune, 100 held out). Tune it on your own traffic.
 
 ## Credits
 

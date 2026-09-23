@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 """lean-forge SETTLE gate (Jev triage). PROVE is Castra's evidence ledger (castra-trace/openloop).
 
-A message after a turn that ended without edits opens the gate only if Jev judges it a reply to that turn;
-a new request there is triaged from scratch.
-
-Per request, edits stay closed until the user answered our questions, unless Jev judges the request
-mechanical. If Jev is unavailable, a one-line marker file opens a mechanical request (fallback).
+At each user message Jev, given the agent's last message, judges whether carrying it out needs a user-visible
+decision the conversation has not settled. If so, edits stay closed until the user answered our questions;
+continuing, approving or correcting the plan, fixes and runs stay open. If Jev is unavailable, a message after an
+asking turn counts as its answer, and a one-line marker file opens a mechanical request (fallback).
 ponytail: per-session JSON state, no locking; one session's hooks run sequentially.
 """
 import json, os, subprocess, sys, time, urllib.request
 
 STATE_DIR = os.path.expanduser("~/.cache/lean-forge")
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
-JEV_Q = {"fixed": {"type": "noul", "instructions":
-    "Given the request and the repository summary, does the request literally determine the exact result, so that any two "
-    "competent engineers who have never talked to this user would produce the same observable output (same names, formats, "
-    "rules, edge-case behavior)? Answer yes only if no product, policy, or output-format decision is left open."}}
-MECH_THRESHOLD = 0.5  # ponytail: calibrated on 16 requests (mechanical >= 0.55, must-ask <= 0.21); tune on real traffic
-REPLY_Q = {"reply": {"type": "noul", "instructions":
-    "The agent's last message and the user's new message are given. Is the user's new message a reply to the agent's "
-    "last message (answering its questions, choosing among its options, approving or correcting its proposal), rather than "
-    "a new, separate request about something else?"}}
-REPLY_THRESHOLD = 0.5  # ponytail: calibrated on 10 exchanges (reply >= 0.79, new request <= 0.24)
+NEEDS_Q = {"needs_decision": {"type": "noul", "instructions":
+    "The user's new message is a request to a coding agent; the agent's last message and a note on how this user works are "
+    "given as context. To carry out the new message, must the agent choose something the user will see or rely on that "
+    "neither the message nor the conversation settles: an output format, names or labels, a screen or interaction design, "
+    "a policy or business rule, or one of several meaningfully different behaviors? Answer no when the work is fixing a "
+    "reported problem so things work as intended, investigating, checking, running, testing, deploying, publishing, "
+    "restarting, processing a named file with stated parameters, following a standing procedure, or applying a change the "
+    "user described concretely or the agent already proposed."}}
+# ponytail: calibrated on the author's own messages: 100 labeled to choose the question and threshold, 100 fresh ones held
+# out (must-ask scored 0.85-0.96; wrongly closed 1 of 42, wrongly opened 0 of 5). Re-check on your own traffic.
+NEEDS_THRESHOLD = 0.8
+PROFILE = os.path.expanduser("~/.config/lean-forge/profile.txt")  # optional, private: how this user instructs agents
 
 
 def jev(state, questions, name):
@@ -44,13 +45,14 @@ def jev(state, questions, name):
         return None
 
 
-def jev_fixed(prompt, cwd):
-    """Probability that the request fixes the result."""
+def needs_decision(prompt, agent):
+    """Probability that the request leaves a user-visible decision open, judged with the conversation and the user's habits."""
+    state = {"agent_last_message": agent[-3000:], "user_new_message": prompt[:4000]}
     try:
-        files = subprocess.run(["git", "ls-files"], cwd=cwd, capture_output=True, text=True, timeout=2).stdout.split()[:60]
-    except Exception:
-        files = []
-    return jev({"repository_files": files, "request": prompt[:6000]}, JEV_Q, "fixed")
+        state["about_this_user"] = open(PROFILE).read().strip()[:2000]
+    except OSError:
+        pass
+    return jev(state, NEEDS_Q, "needs_decision")
 
 
 def last_agent_message(transcript_path):
@@ -74,15 +76,6 @@ def last_agent_message(transcript_path):
     return ""
 
 
-def is_reply(prompt, transcript_path):
-    """After a turn that ended without edits: is this message an answer, not a new request? Unknown counts as answer."""
-    agent = last_agent_message(transcript_path)
-    if not agent:
-        return True
-    p = jev({"agent_last_message": agent, "user_new_message": prompt[:4000]}, REPLY_Q, "reply")
-    return p is None or p >= REPLY_THRESHOLD
-
-
 def deny(reason):
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
@@ -103,12 +96,14 @@ def main():
     if ev == "prompt":
         if "<task-notification>" in inp.get("prompt", ""):
             return  # a background-task notice, not a user request: the gate keeps its state
-        if st.get("state") == "asked" and is_reply(inp.get("prompt", ""), inp.get("transcript_path", "")):
-            st = {"state": "open", "prompt_at": now, "jev": st.get("jev")}  # the user is answering our questions
-        else:  # a new request, including one that follows a turn which only explained something
-            p = jev_fixed(inp.get("prompt", ""), inp.get("cwd", "."))
-            st = {"state": "open" if (p is not None and p >= MECH_THRESHOLD) else "closed",
-                  "prompt_at": now, "jev": p, "hatch": p is None}
+        prompt = inp.get("prompt", "")
+        agent = last_agent_message(inp.get("transcript_path", "")) if st.get("prompt_at") else ""
+        p = needs_decision(prompt, agent)
+        if p is None:  # Jev unavailable: only a message after an asking turn counts as its answer; otherwise the hatch
+            opened = st.get("state") == "asked"
+        else:  # continuing, approving or correcting the agent's plan, fixes and runs stay open; open-ended new work asks
+            opened = p < NEEDS_THRESHOLD
+        st = {"state": "open" if opened else "closed", "prompt_at": now, "jev": p, "hatch": p is None}
 
     elif ev == "pre":
         if inp.get("tool_name") not in EDIT_TOOLS or st.get("state") == "open":

@@ -53,8 +53,7 @@ def transcript(text):
     return t
 call, mech, sp = session("reply")
 call("prompt", prompt="invoicer/calc.py의 total 함수가 뭐 하는 거야?")
-call("stop")
-assert json.load(open(sp))["state"] == "asked", "explaining turn recorded as asked"
+call("stop")  # a question needs no decision; what matters is how the next message is judged
 t = transcript("total은 할인 후 금액에 부가세를 더한 값을 돌려줍니다. 줄마다 원 단위를 버립니다.")
 call("prompt", prompt="송장을 PDF로 뽑는 기능 만들어 줘. 거래처에 메일로 보낼 거야.", transcript_path=t)
 assert denied(call("pre", tool_name="Write")), "new request after an explaining turn stays closed"
@@ -63,5 +62,17 @@ t = transcript("PDF 서식을 확인받고 싶습니다. 1) A4 세로로 할까�
 call("prompt", prompt="승인합니다. 로고는 빼 줘.", transcript_path=t)
 assert not denied(call("pre", tool_name="Write")), "a reply to the agent's questions opens"
 
+# a go-ahead after a turn that was already working continues that work (it is not a new request)
+callc, _, spc = session("continue")
+callc("prompt", prompt="invoicer/calc.py 맨 위 설명문에 있는 오타 recieve를 receive로 고쳐 줘.")
+callc("stop")
+assert json.load(open(spc))["state"] == "open", "a working turn stays open at its end"
+tc = transcript("오타를 고쳤습니다. 같은 파일의 다른 설명문 두 곳도 문장이 어색해서, 이어서 다듬겠습니다. 진행할까요?")
+callc("prompt", prompt="진행해줘.", transcript_path=tc)
+assert json.load(open(spc))["state"] == "open", "go-ahead after a working turn keeps edits open"
+callc("stop")
+callc("prompt", prompt="송장을 PDF로 뽑는 기능 만들어 줘. 거래처에 메일로 보낼 거야.", transcript_path=tc)
+assert json.load(open(spc))["state"] == "closed", "an unrelated new request is triaged from scratch"
+
 for f in glob.glob(f"{S}/selftest-*-{os.getpid()}.*"): os.remove(f)
-print("forge ok (settle fallback, settle live Jev, reply vs new request)")
+print("forge ok (settle fallback, settle live Jev, reply vs new request, go-ahead continues)")
