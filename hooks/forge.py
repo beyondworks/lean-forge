@@ -36,7 +36,8 @@ def jev(state, questions, name):
             return None
         body = json.dumps({"model": "jev-latest", "questions": questions, "state": state}).encode()
         req = urllib.request.Request("https://api.typesafe.ai/v1/systemone", data=body, method="POST",
-                                     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+                                     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                                              "User-Agent": "lean-forge"})  # the API's edge blocks Python-urllib's default UA (403, error 1010)
         with urllib.request.urlopen(req, timeout=4) as r:
             return json.load(r)["answers"][name]["noul"]
     except Exception:
