@@ -101,6 +101,8 @@ def main():
     now = time.time()
 
     if ev == "prompt":
+        if "<task-notification>" in inp.get("prompt", ""):
+            return  # a background-task notice, not a user request: the gate keeps its state
         if st.get("state") == "asked" and is_reply(inp.get("prompt", ""), inp.get("transcript_path", "")):
             st = {"state": "open", "prompt_at": now, "jev": st.get("jev")}  # the user is answering our questions
         else:  # a new request, including one that follows a turn which only explained something

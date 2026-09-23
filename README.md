@@ -126,14 +126,27 @@ API-price equivalent of the tokens used.
 | Castra + Ponytail | 15/36 | 10 min | $3.79 |
 | **lean-forge** (2 runs) | **31/36 · 36/36** | **18 min** | **$5.2** |
 
-**Is the difference real?** Fisher's exact test on test counts, paired sign test on time and cost per task.
+**Is the difference real?** The hidden tests of one task are not independent, so each task is one cluster: paired
+per-task differences, their mean with a 95% confidence interval, and a sign test (as recommended by
+[Miller 2024](https://arxiv.org/abs/2411.00640)).
 
-| lean-forge vs | Accuracy | Time and cost |
-|---|---|---|
-| Castra + Ponytail | **2.2× higher** (93% vs 42%, p < 0.001) | no significant difference (p = 0.07) |
+| lean-forge − Castra + Ponytail (8 tasks) | Difference | 95% CI | Sign test |
+|---|---|---|---|
+| Task pass rate (0.94 vs 0.47) | **+0.46** | +0.17 to +0.76 | p = 0.031 |
+| Share of runs passing every hidden test (0.94 vs 0.25) | **+0.69** | +0.30 to +1.07 | p = 0.031 |
+| Time per task (2.3 vs 1.2 min) | +1.1 min | +0.5 to +1.6 | p = 0.070 |
+| Cost per task ($0.65 vs $0.47) | +$0.18 | +0.05 to +0.31 | p = 0.070 |
 
-The same comparison on the author's full personal setup (other plugins, hooks and memory loaded)
-gave the same picture: 95% vs 52% (p < 0.001) at equal time (18 vs 19 minutes, p = 1.00).
+Accuracy is clearly higher; it costs about a minute and $0.18 more per task.
+
+On the author's full personal setup (other plugins, hooks and memory loaded; 7 tasks) the direction was the same
+(task pass rate 0.96 vs 0.57, +0.39, 95% CI −0.05 to +0.82), but not conclusive at this size; time and cost did not differ.
+
+On Claude Opus 5.5 (Claude Code 2.1.280, effort medium, 3 runs per task): 0.75 with no harness, 0.97 with lean-forge
+(+0.23, 95% CI −0.04 to +0.49).
+
+*Up to v2.0.3 this README pooled the 36 hidden tests as if independent and reported Fisher's test as "p < 0.001", which
+overstates significance. Corrected in v2.0.4.*
 
 - 6 of lean-forge's 8 missed tests came from two runs where the scripted user answered against its own
   intent file (it approved a wrong number format, and waved off a question the file answered). The agent

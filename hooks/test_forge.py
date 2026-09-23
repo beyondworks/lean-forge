@@ -43,6 +43,8 @@ out = call("pre", tool_name="Write")
 assert denied(out) and "independent check" in out, f"Jev: open request stays closed, hatch refused (p={st['jev']})"
 call("stop")
 assert json.load(open(sp))["state"] == "asked", "a refused marker is not a used hatch: the turn still counts as asked"
+call("prompt", prompt="<task-notification><task-id>b1</task-id><status>completed</status></task-notification>")
+assert json.load(open(sp))["state"] == "asked", "a background-task notice is not a request: the gate keeps its state"
 
 # a turn that only explained something must not turn the next new request into an "answer"
 def transcript(text):
