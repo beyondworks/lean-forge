@@ -228,7 +228,7 @@ python3 hooks/test_bundle.py   # guardian, release gate, session contract, evide
 
 ## Credits
 
-- [Castra](https://github.com/beyondworks/castra) 0.9.1 — MIT, vendored unchanged ([license](vendor-licenses/castra-LICENSE))
+- [Castra](https://github.com/beyondworks/castra) 0.9.1 — MIT, vendored with one rule narrowed: `.env` reads are judged by the file a command opens, not by the word anywhere in the command line ([license](vendor-licenses/castra-LICENSE))
 - [Ponytail](https://github.com/DietrichGebert/ponytail) 4.5.0 by Dietrich Gebert — MIT, vendored with one sentence changed ([license](vendor-licenses/ponytail-LICENSE))
 - [Jev](https://docs.typesafe.ai) by TypeSafe — external API
 

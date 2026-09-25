@@ -38,9 +38,8 @@ RULES = [
     (r"\bdocker\s+(rm|rmi|system\s+prune)\b",    "pre_approval", "컨테이너·이미지 삭제"),
     (r"\bgit\s+(commit|add)\b",                  "pre_approval", "커밋"),
 
-    # 시크릿 노출 — security.md: .env 계열은 읽어서 출력 금지
-    (r"\b(cat|less|more|head|tail|bat|open|grep|rg)\b[^|;]*\.env(\.|\b)",
-     "hand_off", "security.md: .env 파일은 읽어서 출력하지 않는다"),
+    # 시크릿 노출 — security.md: .env 계열은 읽어서 출력 금지. POSIX 셸은 정규식이 아니라
+    # _reads_env()가 명령별 파일 인자로 판정한다(`process.env` 검색·파일 이름 확인·본문 속 단어는 제외).
     (r"\b(cat|less|more|head|tail|bat)\b[^|;]*\b(id_rsa|\.pem|credentials)\b",
      "hand_off", "비밀키·자격증명 출력"),
     (r"\bgit\s+add\s+(\.|-A|--all)(\s|$)",
@@ -61,8 +60,7 @@ RULES = [
      "confirm_at_action", "서비스·프로세스 중단"),
     (r"\bStart-Process\b[^|;]*-Verb\s+RunAs\b",
      "confirm_at_action", "권한 상승"),
-    (r"\b(Get-Content|type|gc)\b[^|;]*\.env(\.|\b)",
-     "hand_off", "security.md: .env 파일은 읽어서 출력하지 않는다"),
+    # PowerShell 의 .env 읽기(Get-Content·gc·type)도 _reads_env()가 명령 자리만 보고 판정한다.
 ]
 
 # 시크릿 노출 위험 (등급과 별개로 항상 경고)
@@ -140,10 +138,72 @@ def _quoted_args_are_inert(cmd: str) -> bool:
     return bool(segments) and all(_head_command(s) in INERT for s in segments)
 
 
+ENV_READERS = {"cat", "less", "more", "head", "tail", "bat", "open", "grep", "egrep", "fgrep", "rg",
+               "get-content", "gc", "type"}   # 뒤의 셋은 PowerShell·cmd
+PATTERN_FIRST = {"grep", "egrep", "fgrep", "rg"}   # 첫 번째 위치 인자는 파일이 아니라 검색어
+ENV_FILE = re.compile(r"(^|\.)env(\.[^/]*)?$")      # .env, .env.local, prod.env — process.environment 는 아님
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
+# 스크립트 안에서 .env 를 여는 호출 — here-document 본문까지 본다(본문의 open()은 실제로 실행된다)
+OPEN_ENV = re.compile(r"\bopen\(\s*[rbfu]?(['\"])(?:[^'\"]*/)?[^'\"/]*\.env(?:\.[^'\"/]*)?\1")
+
+
+SUBST = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+SHELL_FED = re.compile(r"\b(ba|z|da)?sh\b[^<|;&]*<<")   # bash <<'SH' 의 본문은 실행되는 명령이다
+
+
+def _strip_heredocs(cmd: str) -> str:
+    """here-document 본문은 데이터라서 지우고 명령 줄만 남긴다. 셸로 넘기는 본문은 명령이라 남긴다."""
+    out, end = [], None
+    for line in cmd.split("\n"):
+        if end is not None:
+            if line.strip() == end:
+                end = None
+            continue
+        out.append(line)
+        m = HEREDOC.search(line)
+        if m and not SHELL_FED.search(line):
+            end = m.group(2)
+    return "\n".join(out)
+
+
+def _reads_env(cmd: str) -> bool:
+    """읽기·출력 명령이 .env 계열 파일을 인자로 받는가."""
+    import shlex
+    if OPEN_ENV.search(cmd):
+        return True
+    body = _strip_heredocs(cmd)
+    # $(…)·`…` 안의 명령도 실행된다 — 값이 변수로 들어가 나중에 출력될 수 있다
+    inners = [m.group(1) if m.group(1) is not None else m.group(2) for m in SUBST.finditer(body)]
+    if any(_reads_env(inner) for inner in inners if inner.strip() and inner != cmd):
+        return True
+    for seg in _split_segments(body):
+        try:
+            words = shlex.split(seg)
+        except ValueError:
+            words = seg.split()
+        while words and ENV_ASSIGN.match(words[0]):
+            words = words[1:]
+        if not words:
+            continue
+        head = words[0].rsplit("/", 1)[-1].lower()
+        if head not in ENV_READERS:
+            continue
+        args = [w for w in words[1:] if not w.startswith("-")]
+        if head in PATTERN_FIRST and not any(w in ("-e", "-f") or w.startswith("--regexp") for w in words[1:]):
+            args = args[1:]
+        if any(ENV_FILE.search(a.rstrip("/").rsplit("/", 1)[-1]) and ".env" in a for a in args):
+            return True
+    return False
+
+
 def classify(cmd: str) -> dict:
     ignored = _quoted_args_are_inert(cmd)
     scan = QUOTED.sub(" ", cmd) if ignored else cmd
     verdict, reasons = "not_required", []
+    if _reads_env(cmd):
+        verdict = "hand_off"
+        reasons.append({"grade": "hand_off", "reason": "security.md: .env 파일은 읽어서 출력하지 않는다",
+                        "matched": "_reads_env"})
     for pat, grade, why in RULES:
         if re.search(pat, scan, re.IGNORECASE):
             reasons.append({"grade": grade, "reason": why, "matched": pat})
