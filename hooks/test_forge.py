@@ -22,7 +22,7 @@ call("prompt", jev_off=True, prompt="x")
 assert denied(call("pre", tool_name="Edit")), "new request: edits closed"
 assert not denied(call("pre", tool_name="Bash")), "non-edit tools pass"
 call("stop")
-call("prompt", prompt="answer")
+call("prompt", jev_off=True, prompt="answer")  # fallback path: the reply is judged without Jev
 assert not denied(call("pre", tool_name="Write")), "after ask + answer: open"
 call("stop")
 call("prompt", jev_off=True, prompt="y")

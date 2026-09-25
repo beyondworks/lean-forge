@@ -43,6 +43,38 @@ for cmd in ['git grep -n "process.env.LS_\\|process.env.LEMON" origin/main -- sr
             "cat > memo.md <<'EOF'\n---\ntype: project\n---\n.env.local은 커밋하지 않는다\nEOF",
             "PW=/x timeout 120 node --input-type=module -e \"const m = await import(process.env.PW);\""]:
     assert '"deny"' not in pre_bash(cmd), f"naming .env without reading it passes: {cmd}"
+# the other hand-off rules: a command that really does it is still handed off
+for cmd in ["git push -f origin x", "cd w && git push -q --force-with-lease origin b 2>&1 | grep -v remote",
+            'psql "$DB" -c "DROP TABLE users"', "psql \"$DB\" <<'SQL'\ndrop table users;\nSQL",
+            'echo "DROP TABLE users" | psql "$DB"', "less ~/.ssh/id_rsa", "cat ~/.aws/credentials",
+            "sudo mkfs.ext4 /dev/sdb", "passwd crew", "ssh h 'sudo passwd crew'",
+            "python3 - <<'PY'\nimport subprocess\nsubprocess.run('git push --force origin main', shell=True)\nPY",
+            "bash <<'SH'\ngit push --force origin main\nSH",
+            # a script written by a here-document and then run in the same command is a command, not data
+            "cat > /tmp/p/fix.sh <<'EOF'\ngit push --force origin main\nEOF\nchmod +x /tmp/p/fix.sh; /tmp/p/fix.sh",
+            "cat > a.sql <<'SQL'\ndrop table users;\nSQL\npsql \"$DB\" -f a.sql",
+            "ssh h powershell <<'PS'\nFormat-Volume -DriveLetter D\nPS",
+            # git's global options before the subcommand do not hide it
+            "git -C /repo push --force origin main", "git -c user.name=x push -f", "git -C /repo filter-repo --path a"]:
+    assert '"deny"' in pre_bash(cmd), f"a real hand-off stays handed off: {cmd}"
+# confirm-at-action rules survive quoting the splitter cannot follow and scripts generated for remote execution
+for cmd in [r'''echo "pid=$CP reg=$(lsappinfo list | grep -B6 -E "pid = *$CP\b" | grep -oE '^\s*[0-9]+\) "[^"]*"' | head -1)"; wait $CP''' + "\n"
+            + r'''kill $SP 2>/dev/null; sleep 1; rm -rf "$R"; echo cleaned''',
+            "ENC=$(python3 - <<'EOF'\nprint('Get-Process x | Stop-Process -Force')\nEOF\n); ssh h \"powershell -EncodedCommand $ENC\"",
+            "git -C /repo reset --hard HEAD~1"]:
+    assert '"ask"' in pre_bash(cmd), f"a confirm-at-action command still asks: {cmd[:60]}"
+# ...but the words alone are not: these were real commands the old patterns denied
+for cmd in ["git push -q origin feat/x 2>&1 | tail -1; pkill -f vite",
+            "git push -q origin fix/a 2>&1 | tail -1; git worktree remove --force ../wt",
+            "grep -niE '^\\s*(delete|truncate|drop table)' 99-rollback.sql | head",
+            "cat > supabase/migrations/1_x.sql <<'SQL'\ndrop table if exists public.t;\nSQL",
+            "cat > src/auth-errors.mjs <<'EOF'\n// \"Invalid login credentials\" 원문을 사전 키로\nEOF",
+            "python3 - <<'PY'\nrow = 'Remove-Item -Recurse -Force, Format-Volume 미포함'\nPY",
+            "ssh h 'getent passwd crew | cut -d: -f3,6'",
+            "# 되돌리기에는 drop table 이 들어 있어 사용자 직접 실행\nls supabase/migrations | tail -3",
+            # a search next to an unrelated script runner is still only a search
+            "grep -c 'passwd\\|DROP TABLE\\|mkfs' rules.py; python3 - <<'PY'\nprint(1)\nPY"]:
+    assert '"deny"' not in pre_bash(cmd), f"naming a risky command without running it passes: {cmd}"
 assert '"ask"' in pre_bash("rm -rf build"), "recursive delete asks at action"
 assert pre_bash("ls -la").strip() in ("", "{}"), "ordinary command passes"
 

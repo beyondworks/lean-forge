@@ -219,7 +219,7 @@ python3 hooks/test_bundle.py   # 가디언, 배포 관문, 세션 계약, 검증
 
 ## 출처
 
-- [Castra](https://github.com/beyondworks/castra) 0.9.1 — MIT, 한 규칙만 좁혀 포함: `.env` 읽기는 명령줄 어디에 그 글자가 있는지가 아니라 명령이 실제로 여는 파일로 판정합니다 ([라이선스](vendor-licenses/castra-LICENSE))
+- [Castra](https://github.com/beyondworks/castra) 0.9.1 — MIT, 가디언의 판정만 좁혀 포함: 규칙은 명령이 실제로 실행하는 부분에만 적용하고 데이터(파일에 쓰는 here-document 본문, 검색어, 주석) 속 글자에는 적용하지 않습니다. `git -C …`로 하위 명령이 가려지지도 않습니다 ([라이선스](vendor-licenses/castra-LICENSE))
 - [Ponytail](https://github.com/DietrichGebert/ponytail) 4.5.0, Dietrich Gebert — MIT, 한 문장만 바꿔 포함 ([라이선스](vendor-licenses/ponytail-LICENSE))
 - [Jev](https://docs.typesafe.ai), TypeSafe — 외부 API
 

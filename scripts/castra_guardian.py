@@ -6,21 +6,25 @@ Exit codes: 0 ordinary; 1 existing authority required; 2 platform confirmation; 
 """
 import argparse, json, re, sys
 
+# git 과 하위 명령 사이의 전역 옵션(-C 경로, -c 설정=값 등)은 건너뛴다 — `git -C repo push --force` 도 강제 푸시다
+GIT = r"\bgit(?:\s+(?:-C|-c|--git-dir|--work-tree|--namespace)\s+\S+|\s+--[\w-]+(?:=\S+)?|\s+-[pP])*\s+"
+
 # (정규식, 등급, 사유) — 위에서부터 먼저 맞는 것이 이긴다
 RULES = [
     # hand_off: 에이전트가 최종 실행을 하지 않는다
-    (r"\bgit\s+push\b.*(--force\b|-f\b)",        "hand_off", "강제 푸시는 원격 히스토리를 되돌릴 수 없게 덮어쓴다"),
-    (r"\bgit\s+filter-(repo|branch)\b",          "hand_off", "히스토리 재작성"),
+    (GIT + r"push\b.*(--force\b|-f\b)",        "hand_off", "강제 푸시는 원격 히스토리를 되돌릴 수 없게 덮어쓴다"),
+    (GIT + r"filter-(repo|branch)\b",          "hand_off", "히스토리 재작성"),
     (r"\bDROP\s+(TABLE|DATABASE|SCHEMA)\b",      "hand_off", "스키마 삭제"),
     (r"\bTRUNCATE\s+TABLE\b",                    "hand_off", "테이블 전체 삭제"),
     (r"\b(mkfs|fdisk|diskutil\s+erase)\b",       "hand_off", "디스크 포맷"),
     (r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\s+/(\s|$)", "hand_off", "루트 삭제"),
-    (r"\b(passwd|security\s+add-generic-password)\b", "hand_off", "자격증명 변경"),
+    # `getent passwd`·`/etc/passwd` 는 계정 정보를 읽을 뿐이다
+    (r"(?<!getent )(?<![/\w.-])passwd\b(?![-.\w])|\bsecurity\s+add-generic-password\b", "hand_off", "자격증명 변경"),
 
     # confirm_at_action: 미리 승인받았어도 실행 시점에 다시 확인
     (r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f?\b",         "confirm_at_action", "재귀 삭제는 복구가 어렵다"),
-    (r"\bgit\s+reset\s+--hard\b",                "confirm_at_action", "미커밋 변경 소실"),
-    (r"\bgit\s+clean\s+-[a-zA-Z]*[fd]",          "confirm_at_action", "추적되지 않은 파일 삭제"),
+    (GIT + r"reset\s+--hard\b",                "confirm_at_action", "미커밋 변경 소실"),
+    (GIT + r"clean\s+-[a-zA-Z]*[fd]",          "confirm_at_action", "추적되지 않은 파일 삭제"),
     (r"\bDELETE\s+FROM\b(?!.*\bWHERE\b)",        "confirm_at_action", "WHERE 없는 DELETE"),
     (r"\bUPDATE\b(?!.*\bWHERE\b).*\bSET\b",      "confirm_at_action", "WHERE 없는 UPDATE"),
     (r"curl[^|]*\|\s*(sudo\s+)?(ba)?sh",         "confirm_at_action", "원격 스크립트 즉시 실행"),
@@ -31,18 +35,17 @@ RULES = [
     (r"\bnpm\s+publish\b|\bgh\s+release\s+create\b", "confirm_at_action", "외부 배포"),
 
     # pre_approval: 세션에서 구체적으로 승인했으면 진행
-    (r"\bgit\s+push\b",                          "pre_approval", "원격 반영"),
+    (GIT + r"push\b",                          "pre_approval", "원격 반영"),
     (r"\bgh\s+pr\s+(create|merge)\b",            "pre_approval", "PR 생성·병합"),
     (r"\b(mail|sendmail|slack)\b.*\bsend\b",     "pre_approval", "외부 발송"),
     (r"\bbrew\s+(install|upgrade)\b|\bnpm\s+i(nstall)?\s+-g\b", "pre_approval", "소프트웨어 설치"),
     (r"\bdocker\s+(rm|rmi|system\s+prune)\b",    "pre_approval", "컨테이너·이미지 삭제"),
-    (r"\bgit\s+(commit|add)\b",                  "pre_approval", "커밋"),
+    (GIT + r"(commit|add)\b",                  "pre_approval", "커밋"),
 
     # 시크릿 노출 — security.md: .env 계열은 읽어서 출력 금지. POSIX 셸은 정규식이 아니라
     # _reads_env()가 명령별 파일 인자로 판정한다(`process.env` 검색·파일 이름 확인·본문 속 단어는 제외).
-    (r"\b(cat|less|more|head|tail|bat)\b[^|;]*\b(id_rsa|\.pem|credentials)\b",
-     "hand_off", "비밀키·자격증명 출력"),
-    (r"\bgit\s+add\s+(\.|-A|--all)(\s|$)",
+    # 비밀키·자격증명 파일 출력도 같은 방식으로 _reads_keyfile()이 판정한다.
+    (GIT + r"add\s+(\.|-A|--all)(\s|$)",
      "confirm_at_action", "security.md: git add . / -A 금지, 파일을 명시하라"),
 
     # PowerShell — 윈도우에서 Git Bash 가 없으면 셸이 PowerShell 로 떨어진다.
@@ -82,12 +85,10 @@ ACTION = {
 }
 
 
-# 인자를 읽거나 출력만 하고 실행하지는 않는 명령.
-# 이 명령들만으로 이루어진 명령줄에 한해 따옴표 안을 검사에서 뺀다.
-# 위험한 단어를 "검색하는 일"과 "실행하는 일"을 가르기 위한 것이다.
+# 인자를 읽거나 출력만 하고 실행하지는 않는 명령. 실행기로 파이프되지 않는 한 이 명령의 구간은
+# 위험 규칙에서 뺀다 — 위험한 단어를 "검색하는 일"과 "실행하는 일"을 가르기 위한 것이다.
 INERT = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "echo", "printf"}
 
-QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
 ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
@@ -128,16 +129,6 @@ def _head_command(segment: str) -> str:
     return ""
 
 
-def _quoted_args_are_inert(cmd: str) -> bool:
-    """명령줄 전체가 읽기·출력 전용 명령으로만 이루어졌는가.
-
-    한 구간이라도 다른 명령이면 예외를 적용하지 않는다. 그래야
-    `grep "x" f | bash` 처럼 뒤에서 실행이 일어나는 형태를 놓치지 않는다.
-    """
-    segments = _split_segments(cmd)
-    return bool(segments) and all(_head_command(s) in INERT for s in segments)
-
-
 ENV_READERS = {"cat", "less", "more", "head", "tail", "bat", "open", "grep", "egrep", "fgrep", "rg",
                "get-content", "gc", "type"}   # 뒤의 셋은 PowerShell·cmd
 PATTERN_FIRST = {"grep", "egrep", "fgrep", "rg"}   # 첫 번째 위치 인자는 파일이 아니라 검색어
@@ -166,16 +157,15 @@ def _strip_heredocs(cmd: str) -> str:
     return "\n".join(out)
 
 
-def _reads_env(cmd: str) -> bool:
-    """읽기·출력 명령이 .env 계열 파일을 인자로 받는가."""
+def _reader_calls(cmd: str):
+    """(명령 이름, 파일 인자) — here-document 본문을 빼고, $(…)·`…` 안의 명령까지 편다."""
     import shlex
-    if OPEN_ENV.search(cmd):
-        return True
     body = _strip_heredocs(cmd)
     # $(…)·`…` 안의 명령도 실행된다 — 값이 변수로 들어가 나중에 출력될 수 있다
-    inners = [m.group(1) if m.group(1) is not None else m.group(2) for m in SUBST.finditer(body)]
-    if any(_reads_env(inner) for inner in inners if inner.strip() and inner != cmd):
-        return True
+    for m in SUBST.finditer(body):
+        inner = m.group(1) if m.group(1) is not None else m.group(2)
+        if inner.strip() and inner != cmd:
+            yield from _reader_calls(inner)
     for seg in _split_segments(body):
         try:
             words = shlex.split(seg)
@@ -186,26 +176,111 @@ def _reads_env(cmd: str) -> bool:
         if not words:
             continue
         head = words[0].rsplit("/", 1)[-1].lower()
-        if head not in ENV_READERS:
-            continue
         args = [w for w in words[1:] if not w.startswith("-")]
         if head in PATTERN_FIRST and not any(w in ("-e", "-f") or w.startswith("--regexp") for w in words[1:]):
             args = args[1:]
-        if any(ENV_FILE.search(a.rstrip("/").rsplit("/", 1)[-1]) and ".env" in a for a in args):
-            return True
-    return False
+        yield head, args
+
+
+def _reads_env(cmd: str) -> bool:
+    """읽기·출력 명령이 .env 계열 파일을 인자로 받는가."""
+    if OPEN_ENV.search(cmd):
+        return True
+    return any(head in ENV_READERS and any(ENV_FILE.search(a.rstrip("/").rsplit("/", 1)[-1]) and ".env" in a for a in args)
+               for head, args in _reader_calls(cmd))
+
+
+KEY_READERS = {"cat", "less", "more", "head", "tail", "bat"}
+KEY_FILE = re.compile(r"^id_(rsa|dsa|ecdsa|ed25519)$|\.pem$|^credentials(\.json)?$")
+
+
+def _reads_keyfile(cmd: str) -> bool:
+    """출력 명령이 비밀키·자격증명 파일을 인자로 받는가."""
+    return any(head in KEY_READERS and any(KEY_FILE.search(a.rstrip("/").rsplit("/", 1)[-1]) for a in args)
+               for head, args in _reader_calls(cmd))
+
+
+# 명령으로 실행되는 본문을 받는 실행기. 여기로 넘어가는 here-document·파이프 입력은 데이터가 아니다.
+SHELLS = {"sh", "bash", "zsh", "dash"}
+SQL_RUNNERS = {"psql", "sqlite3", "mysql"}
+REMOTE_RUNNERS = {"ssh", "powershell", "pwsh"}
+EXECUTORS = SHELLS | SQL_RUNNERS | REMOTE_RUNNERS | {"eval", "xargs", "python", "python3", "node"}
+SCRIPT_RUNNERS = re.compile(r"\b(python3?|node|deno|ruby|perl)\b[^<|;&]*<<")
+RUNS_COMMAND = re.compile(r"subprocess|os\.system|os\.popen|child_process|execSync|spawnSync|\bexec\(")
+
+
+MISSPLIT = re.compile(r"\$\(|`|\n|;|&&|\|\|")
+WRITES_TO = re.compile(r"(?:>>?|\btee\s+(?:-a\s+)?)\s*(['\"]?)([^\s'\"<>|;&]+)\1[^<]*<<")
+
+
+def _command_view(cmd: str) -> str:
+    """위험 규칙을 적용할 부분만 남긴다: 실행되지 않는 here-document 본문과 주석 줄을 뺀다.
+
+    셸·SQL·원격 실행기로 넘기는 본문은 그대로, 스크립트 실행기로 넘기는 본문은 명령을 실행하는 줄만 남긴다.
+    파일로 쓰는 본문은 그 파일 이름이 같은 명령의 다른 곳(실행·복사·등록)에 다시 나오면 명령으로 본다.
+    """
+    lines, bodies, end = [], [], None     # bodies: [파일 이름 또는 None, 남길 방식, 본문 줄]
+    for line in cmd.split("\n"):
+        if end is not None:
+            if line.strip() == end:
+                end = None
+            else:
+                bodies[-1][2].append(line)
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        lines.append(line)
+        m = HEREDOC.search(line)
+        if m:
+            end = m.group(2)
+            heads = {_head_command(s) for s in _split_segments(line[:m.start()])}
+            # $(…) 안에서 시작한 본문은 출력이 다른 명령(원격 실행 등)에 쓰인다 — 명령으로 본다
+            keep = "all" if heads & (SHELLS | SQL_RUNNERS | REMOTE_RUNNERS) or "$(" in line[:m.start()] else \
+                   "calls" if SCRIPT_RUNNERS.search(line) else None
+            w = WRITES_TO.search(line)
+            name = w.group(2).rsplit("/", 1)[-1] if w and w.group(2) not in ("/dev/null",) else None
+            bodies.append([name, keep, []])
+    # 쓴 파일이 나중에 쓰이면(다른 본문 속 언급 포함) 그 본문도 명령이다 — 더 늘지 않을 때까지 반복
+    shown = "\n".join(l for l in lines if not HEREDOC.search(l))
+    changed = True
+    while changed:
+        changed = False
+        for b in bodies:
+            if b[0] and b[1] != "all" and re.search(r"(^|[^\w.-])" + re.escape(b[0]) + r"($|[^\w.-])", shown):
+                b[1] = "all"; changed = True
+                shown += "\n" + "\n".join(b[2])
+    out = list(lines)
+    for name, keep, body in bodies:
+        out += body if keep == "all" else [l for l in body if keep == "calls" and RUNS_COMMAND.search(l)]
+    return "\n".join(out)
 
 
 def classify(cmd: str) -> dict:
-    ignored = _quoted_args_are_inert(cmd)
-    scan = QUOTED.sub(" ", cmd) if ignored else cmd
+    view = _command_view(cmd)
+    segments = _split_segments(view)
+
+    def piped_into_executor(seg):
+        m = re.search(re.escape(seg) + r"\s*\|\s*(?:sudo\s+)?(\S+)", view)
+        return bool(m) and m.group(1).rsplit("/", 1)[-1] in EXECUTORS
+
+    # grep·echo 는 인자를 찾거나 보여줄 뿐이다 — 실행기로 파이프되지 않는 한 그 구간은 규칙에서 뺀다.
+    # 구간 안에 $(…)·`…`·줄바꿈·구분자가 남아 있으면 따옴표를 잘못 따라간 것일 수 있으니 빼지 않는다.
+    kept = [s for s in segments
+            if _head_command(s) not in INERT or MISSPLIT.search(s) or piped_into_executor(s)]
+    ignored = len(kept) < len(segments)
+    scan = "\n".join(kept)
     verdict, reasons = "not_required", []
     if _reads_env(cmd):
         verdict = "hand_off"
         reasons.append({"grade": "hand_off", "reason": "security.md: .env 파일은 읽어서 출력하지 않는다",
                         "matched": "_reads_env"})
+    if _reads_keyfile(cmd):
+        verdict = "hand_off"
+        reasons.append({"grade": "hand_off", "reason": "비밀키·자격증명 출력", "matched": "_reads_keyfile"})
     for pat, grade, why in RULES:
-        if re.search(pat, scan, re.IGNORECASE):
+        # 파이프를 가로지르는 규칙(curl … | sh)만 명령줄 전체에, 나머지는 명령 구간마다 적용한다
+        targets = [view] if r"\|" in pat else kept
+        if any(re.search(pat, t, re.IGNORECASE) for t in targets):
             reasons.append({"grade": grade, "reason": why, "matched": pat})
             if ORDER[grade] > ORDER[verdict]:
                 verdict = grade
