@@ -81,6 +81,13 @@ def main():
         call("forge.py", {**payload, "prompt": "APPROVE " + integration_token}, "prompt")
         allowed = json.loads(call("codex-risk.py", risk_payload).stdout)
         assert allowed["hookSpecificOutput"]["permissionDecision"] == "allow"
+        bypass = json.loads(call("codex-risk.py", {**risk_payload, "permission_mode": "bypassPermissions",
+                                                  "tool_input": {"command": "rm -rf ./build-cache"}}).stdout)
+        assert "permissionDecision" not in bypass["hookSpecificOutput"] and "advisory" in bypass["hookSpecificOutput"]["additionalContext"], \
+            "approval never: rm -r is a note, not a token stop"
+        env_read = json.loads(call("codex-risk.py", {**risk_payload, "permission_mode": "bypassPermissions",
+                                                    "tool_input": {"command": "cat .env.local"}}).stdout)
+        assert env_read["hookSpecificOutput"]["permissionDecision"] == "deny", "hand-off still denies"
         tag_payload = {**payload, "permission_mode": "auto", "tool_name": "Bash",
                        "tool_input": {"command": "git tag v1.0.0"}}
         tag_result = json.loads(call("codex-risk.py", tag_payload).stdout)

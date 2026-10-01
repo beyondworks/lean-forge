@@ -57,8 +57,15 @@ def main():
         print(json.dumps(release))
         return
     reasons = "; ".join(item["reason"] for item in verdict.get("reasons", []))
-    needs_confirmation = (verdict["verdict"] == "confirm_at_action" or decision(release) == "ask"
-                          or release.get("needs_user_confirmation") is True)
+    release_review = decision(release) == "ask" or release.get("needs_user_confirmation") is True
+    needs_confirmation = verdict["verdict"] == "confirm_at_action" or release_review
+    # Codex runs with approval "never" (permission_mode bypassPermissions): there a token stop on rm -r or reset --hard
+    # halted work the user had already allowed, and in the evals every such run went on unchanged. It becomes a note;
+    # publication and hand-off keep their stop.
+    if needs_confirmation and not release_review and payload.get("permission_mode") in ("bypassPermissions", "auto"):
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext":
+                          "Castra Codex advisory (not stopped in " + payload["permission_mode"] + " mode): " + reasons}}))
+        return
     if needs_confirmation:
         if consume(payload, command):
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}))
