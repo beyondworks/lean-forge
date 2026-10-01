@@ -130,10 +130,14 @@ def begin_turn(cwd, session):
         state['stop_blocks'] = 0
 
 
-def record_edit(cwd, session, file):
+def record_edit(cwd, session, file, deleted=False):
     path = canonical(cwd, file)
     with locked(cwd, session) as state:
-        state['files'][path] = {'status': 'pending', 'sha256': fingerprint(path), 'edited_at': time.time()}
+        current = fingerprint(path)
+        previous = state['files'].get(path, {})
+        still_deleted = current == 'missing' and previous.get('deleted') is True
+        state['files'][path] = {'status': 'pending', 'sha256': current, 'edited_at': time.time(),
+                                'deleted': bool(deleted or still_deleted)}
 
 
 def record_check(cwd, session, files, before, exit_code, elapsed, kind, started_at=None):
@@ -143,7 +147,8 @@ def record_check(cwd, session, files, before, exit_code, elapsed, kind, started_
             current = fingerprint(path)
             # An edit hook arriving during the run must not be silently closed.
             existing = state['files'].get(path, {})
-            unchanged = current == before[path] and current not in ('missing', 'unreadable')
+            deleted = existing.get('deleted') is True
+            unchanged = current == before[path] and current != 'unreadable' and (current != 'missing' or deleted)
             no_later_edit = started_at is None or existing.get('edited_at', 0) <= started_at
             covered = exit_code == 0 and unchanged and no_later_edit
             all_covered = all_covered and covered

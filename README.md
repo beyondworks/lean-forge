@@ -186,6 +186,19 @@ python3 significance.py        # compare with the recorded results
 
 ## Install
 
+Codex uses the repository-root `plugin.json` as its package entry point. Install lean-forge as a Codex plugin, then review and trust its hook definitions to activate `skills/lean-forge/SKILL.md` and `hooks/hooks.codex.json`. Hooks are not assumed active before that trust step.
+
+From a checkout of this repository, add its marketplace and install the plugin with the Codex CLI:
+
+```bash
+codex plugin marketplace add .
+codex plugin add lean-forge --marketplace lean-forge
+```
+
+The `/plugin marketplace add` and `/plugin install` commands below are for Claude Code.
+
+Codex does not support Claude's `ask` permission decision. Risky commands that need confirmation are denied and require a one-time `APPROVE <token>` response. The token is bound to the session and exact command hash and expires after 15 minutes. The `$lean-forge` skill also gives ordinary ChatGPT sessions the manual SETTLE → BUILD → PROVE → REPORT workflow. Automatic token-budget accounting depends on Claude transcript data and is not provided by the Codex adapter.
+
 ```text
 /plugin marketplace add beyondworks/lean-forge
 /plugin install lean-forge@lean-forge

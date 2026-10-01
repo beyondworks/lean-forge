@@ -25,6 +25,23 @@ def is_tracked(path):
     return path.suffix.lower() in CODE_SUFFIXES or any(marker in path.as_posix() and path.suffix.lower() in endings for marker, endings in PATH_MARKERS)
 
 
+def patch_paths(command):
+    paths = []
+    for line in command.splitlines():
+        line = line.strip()
+        for marker, status in (("*** Update File: ", "updated"), ("*** Add File: ", "added"),
+                               ("*** Delete File: ", "deleted"), ("*** Move to: ", "moved")):
+            if line.startswith(marker):
+                raw = line[len(marker):].strip()
+                if raw and raw != "/dev/null":
+                    if status == "moved" and paths and paths[-1][1] == "updated":
+                        source, _ = paths.pop()
+                        paths.append((source, "deleted"))
+                    paths.append((raw, status))
+                break
+    return paths
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -46,6 +63,15 @@ def main():
                 path = Path(runtime.canonical(cwd, raw))
                 if is_tracked(path):
                     runtime.record_edit(cwd, session, path)
+            return
+        if tool == 'apply_patch':
+            patch = inp.get('command')
+            if not isinstance(patch, str):
+                return
+            for raw, status in patch_paths(patch):
+                path = Path(runtime.canonical(cwd, raw))
+                if is_tracked(path):
+                    runtime.record_edit(cwd, session, path, deleted=(status == 'deleted'))
             return
         if tool != 'Bash':
             return

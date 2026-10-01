@@ -1,0 +1,100 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/castra-posture.py\"",
+            "timeout": 10,
+            "statusMessage": "Loading lean-forge execution contract"
+          },
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/ponytail-activate.js\"",
+            "timeout": 5,
+            "statusMessage": "Loading Ponytail guidance"
+          },
+          {
+            "type": "command",
+            "command": "cat \"${PLUGIN_ROOT}/protocol.md\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/castra-route.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/ponytail-mode-tracker.js\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/forge.py\" prompt",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/codex-risk.py\"",
+            "timeout": 35,
+            "statusMessage": "Checking command risk and release evidence"
+          }
+        ]
+      },
+          {
+            "matcher": "apply_patch",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "python3 \"${PLUGIN_ROOT}/hooks/forge.py\" pre",
+                "timeout": 5
+              }
+            ]
+          }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/castra-trace.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/castra-openloop.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/forge.py\" stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

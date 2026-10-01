@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "lean-forge",
+  "version": "2.0.7",
+  "description": "Settle outcome-changing decisions, build the smallest complete change, and prove it with scoped evidence.",
+  "author": {
+    "name": "beyondworks"
+  },
+  "repository": "https://github.com/beyondworks/lean-forge",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/hooks.codex.json",
+      "interface": {
+        "displayName": "lean-forge",
+        "shortDescription": "Settle first. Build small. Prove the result.",
+        "longDescription": "A decision-first coding workflow with Codex lifecycle hooks, Ponytail guidance, and Castra evidence tracking.",
+        "developerName": "beyondworks",
+        "category": "Developer tools",
+        "capabilities": ["Read", "Write", "Execute"]
+      }
+    }
+  }
+}

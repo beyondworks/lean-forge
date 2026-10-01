@@ -3,7 +3,7 @@
 **중요한 것은 묻고, 코드는 최소로, 끝은 증거로.**
 
 결과를 가르는 결정을 파일에 손대기 전에 확정하고, 그 결정을 만족하는 가장 작은 코드를 만들고, 모든 수정을
-증거로 닫는 Claude Code 플러그인입니다. [Castra](https://github.com/beyondworks/castra)와
+증거로 닫는 Claude Code 및 Codex 플러그인입니다. [Castra](https://github.com/beyondworks/castra)와
 [Ponytail](https://github.com/DietrichGebert/ponytail)을 통째로 안에 담았고, 훅으로 강제하는 질문 단계를
 더했습니다. 따로 설치할 것도, 어느 쪽을 켤지 고를 것도 없습니다.
 
@@ -177,6 +177,22 @@ python3 significance.py        # 기록된 결과와 비교
 ---
 
 ## 설치
+
+Codex는 저장소의 `plugin.json`을 패키지 진입점으로 사용합니다. 저장소 마켓플레이스를 등록한 뒤 플러그인을 설치하세요.
+훅 정의를 검토·신뢰하면 `skills/lean-forge/SKILL.md`와
+`hooks/hooks.codex.json`이 활성화됩니다. 사용자 확인 전에는 훅이 자동 실행된다고 가정하지 마세요.
+
+Codex는 Claude의 `ask` 권한 결정을 지원하지 않습니다. 파괴/외부 영향 명령이 사용자 확인 대상이면 실행을
+거부하고 일회용 `APPROVE <token>` 응답을 요청합니다. 토큰은 해당 명령의 해시와 세션에만 묶이며 15분 뒤 만료됩니다.
+Codex용 `$lean-forge` 스킬은 훅이 없는 일반 ChatGPT 대화에서도 수동으로 SETTLE → BUILD → PROVE → REPORT를
+적용하도록 안내합니다. 토큰 예산 계산은 Claude transcript 형식에 의존하므로 Codex에서는 자동 제공하지 않습니다.
+
+```bash
+codex plugin marketplace add .
+codex plugin add lean-forge --marketplace lean-forge
+```
+
+Claude Code 설치는 아래 명령을 계속 사용합니다.
 
 ```text
 /plugin marketplace add beyondworks/lean-forge

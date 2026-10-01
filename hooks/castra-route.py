@@ -26,7 +26,7 @@ MODES = {
 
 def route(prompt):
     # Anchored invocation only; quoted code and casual mentions do not activate.
-    match = re.match(r'^(?:/castra(?::castra)?\b|castra\s*:)(?:\s*)(.*)$', prompt.strip(), re.I | re.S)
+    match = re.match(r'^(?:/(?:castra|lean-forge)(?::castra)?\b|\$(?:castra|lean-forge)(?::castra)?\b|castra\s*:)(?:\s*)(.*)$', prompt.strip(), re.I | re.S)
     if not match:
         return None
     rest = match.group(1).strip()

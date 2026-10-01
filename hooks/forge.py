@@ -7,10 +7,10 @@ continuing, approving or correcting the plan, fixes and runs stay open. If Jev i
 asking turn counts as its answer, and a one-line marker file opens a mechanical request (fallback).
 ponytail: per-session JSON state, no locking; one session's hooks run sequentially.
 """
-import json, os, subprocess, sys, time, urllib.request
+import json, os, re, subprocess, sys, time, urllib.request
 
 STATE_DIR = os.path.expanduser("~/.cache/lean-forge")
-EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch"}
 NEEDS_Q = {"needs_decision": {"type": "noul", "instructions":
     "The user's new message is a request to a coding agent; the agent's last message and a note on how this user works are "
     "given as context. To carry out the new message, must the agent choose something the user will see or rely on that "
@@ -97,7 +97,21 @@ def main():
         if "<task-notification>" in inp.get("prompt", ""):
             return  # a background-task notice, not a user request: the gate keeps its state
         prompt = inp.get("prompt", "")
-        agent = last_agent_message(inp.get("transcript_path", "")) if st.get("prompt_at") else ""
+        approval = re.fullmatch(r"APPROVE ([0-9a-f]{12})", prompt.strip())
+        if approval:
+            try:
+                from codex_approval import approve
+                if approve(inp, approval.group(1)):
+                    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                  "additionalContext": "One exact risky command has been approved once; Castra will consume it only if the command hash matches."}}))
+                    return
+            except (ImportError, OSError, ValueError):
+                pass
+        # Codex documents last_assistant_message; its transcript file format is
+        # intentionally not parsed because it is not a stable API.
+        agent = (inp.get("last_assistant_message", "") if "last_assistant_message" in inp
+                 else last_agent_message(inp.get("transcript_path", ""))) if st.get("prompt_at") else ""
+        agent = agent if isinstance(agent, str) else ""
         p = needs_decision(prompt, agent)
         if p is None:  # Jev unavailable: only a message after an asking turn counts as its answer; otherwise the hatch
             opened = st.get("state") == "asked"
